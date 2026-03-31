@@ -5,19 +5,39 @@ on:
     # 每週一 UTC 00:00（台灣週一早上 08:00）
     - cron: "0 0 * * 1"
   workflow_dispatch:
+    inputs:
+      sync_test_mode:
+        description: 'Test Mode (dry run)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    name: Sync main with upstream latest
     steps:
-      - name: Checkout
+      - name: Checkout target repo
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Sync upstream changes
-        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
+        id: sync
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.1
         with:
           target_sync_branch: main
           target_repo_token: ${{ secrets.GITHUB_TOKEN }}
           upstream_sync_branch: main
-          upstream_sync_repo: ""
-          test_mode: false
+          upstream_sync_repo: disler/everything-claude-code
+          test_mode: ${{ inputs.sync_test_mode }}
+
+      - name: New commits found
+        if: steps.sync.outputs.has_new_commits == 'true'
+        run: echo "New commits were found to sync."
+
+      - name: No new commits
+        if: steps.sync.outputs.has_new_commits == 'false'
+        run: echo "There were no new commits."
