@@ -14,9 +14,11 @@ const {
   listLegacyCompatibilityLanguages,
   listInstallModules,
   listInstallProfiles,
+  listSupportedLocales,
   resolveInstallPlan,
   resolveLegacyCompatibilitySelection,
   validateInstallModuleIds,
+  LOCALE_ALIAS_TO_COMPONENT_ID,
 } = require('../../scripts/lib/install-manifests');
 
 function test(name, fn) {
@@ -98,6 +100,34 @@ function runTests() {
       'Should include lang:c');
     assert.ok(components.some(component => component.id === 'capability:security'),
       'Should include capability:security');
+    assert.ok(components.some(component => component.id === 'capability:machine-learning'),
+      'Should include capability:machine-learning');
+    assert.ok(components.some(component => component.id === 'agent:mle-reviewer'),
+      'Should include agent:mle-reviewer');
+    assert.ok(components.some(component => component.id === 'skill:mle-workflow'),
+      'Should include skill:mle-workflow');
+  })) passed++; else failed++;
+
+  if (test('every locale alias resolves to a real component with a real module', () => {
+    const manifests = loadInstallManifests();
+
+    for (const locale of listSupportedLocales()) {
+      const componentId = LOCALE_ALIAS_TO_COMPONENT_ID[locale];
+      assert.ok(componentId, `Locale ${locale} should have an alias mapping`);
+
+      const component = getInstallComponent(componentId);
+      assert.strictEqual(component.family, 'locale', `${componentId} should be in the locale family`);
+      assert.ok(component.moduleIds.length > 0, `${componentId} should reference at least one module`);
+
+      for (const moduleId of component.moduleIds) {
+        const module = manifests.modulesById.get(moduleId);
+        assert.ok(module, `${componentId} module ${moduleId} should exist in install-modules.json`);
+        assert.ok(
+          module.paths.every(modulePath => fs.existsSync(path.join(manifests.repoRoot, modulePath))),
+          `${moduleId} paths should exist on disk`
+        );
+      }
+    }
   })) passed++; else failed++;
 
   if (test('gets install component details and validates component IDs', () => {
@@ -145,6 +175,45 @@ function runTests() {
     assert.match(component.description, /continuous-learning-v2/, 'Should point new installs to continuous-learning-v2');
   })) passed++; else failed++;
 
+  if (test('exposes continuous-learning-v2 as a single-skill install surface', () => {
+    const component = getInstallComponent('skill:continuous-learning-v2');
+    assert.strictEqual(component.id, 'skill:continuous-learning-v2');
+    assert.deepStrictEqual(component.moduleIds, ['skill-continuous-learning-v2']);
+    assert.ok(component.targets.includes('claude'), 'Should support Claude installs');
+
+    const plan = resolveInstallPlan({
+      includeComponentIds: ['skill:continuous-learning-v2'],
+      target: 'claude',
+    });
+    assert.deepStrictEqual(plan.selectedModuleIds, ['skill-continuous-learning-v2']);
+    assert.ok(
+      plan.operations.some(operation => operation.sourceRelativePath === 'skills/continuous-learning-v2'),
+      'Should plan only the continuous-learning-v2 skill path'
+    );
+  })) passed++; else failed++;
+
+  if (test('marks unified-memory install surfaces as requiring the separate ECC runtime', () => {
+    const component = getInstallComponent('skill:unified-memory');
+    assert.deepStrictEqual(component.moduleIds, ['skill-unified-memory']);
+    assert.match(component.description, /ecc-universal/i);
+    assert.match(component.description, /separate|external/i);
+
+    const modules = listInstallModules();
+    const singleSkillModule = modules.find(module => module.id === 'skill-unified-memory');
+    const workflowModule = modules.find(module => module.id === 'workflow-quality');
+    assert.ok(singleSkillModule, 'Should define an explicit unified-memory module');
+    assert.match(singleSkillModule.description, /ecc-universal/i);
+    assert.match(singleSkillModule.description, /separate|external/i);
+    assert.match(workflowModule.description, /ecc-universal/i);
+
+    const plan = resolveInstallPlan({
+      includeComponentIds: ['skill:unified-memory'],
+      target: 'claude',
+    });
+    assert.ok(plan.selectedModuleIds.includes('skill-unified-memory'));
+    assert.ok(plan.selectedModuleIds.includes('platform-configs'));
+  })) passed++; else failed++;
+
   if (test('lists supported legacy compatibility languages', () => {
     const languages = listLegacyCompatibilityLanguages();
     assert.ok(languages.includes('typescript'));
@@ -153,9 +222,12 @@ function runTests() {
     assert.ok(languages.includes('golang'));
     assert.ok(languages.includes('kotlin'));
     assert.ok(languages.includes('rust'));
+    assert.ok(languages.includes('ruby'));
+    assert.ok(languages.includes('rails'));
     assert.ok(languages.includes('cpp'));
     assert.ok(languages.includes('c'));
     assert.ok(languages.includes('csharp'));
+    assert.ok(languages.includes('fsharp'));
   })) passed++; else failed++;
 
   if (test('resolves a real project profile with target-specific skips', () => {
@@ -204,13 +276,20 @@ function runTests() {
 
     assert.deepStrictEqual(
       plan.selectedModuleIds,
-      ['rules-core', 'agents-core', 'commands-core', 'platform-configs', 'workflow-quality']
+      [
+        'rules-core',
+        'agents-core',
+        'commands-core',
+        'platform-configs',
+        'skill-unified-memory',
+        'workflow-quality'
+      ]
     );
     assert.ok(plan.skippedModuleIds.includes('hooks-runtime'));
     assert.ok(!plan.skippedModuleIds.includes('platform-configs'));
     assert.ok(!plan.skippedModuleIds.includes('workflow-quality'));
     assert.strictEqual(plan.targetAdapterId, 'antigravity-project');
-    assert.strictEqual(plan.targetRoot, path.join(projectRoot, '.agent'));
+    assert.strictEqual(plan.targetRoot, path.join(projectRoot, '.agents'));
   })) passed++; else failed++;
 
   if (test('resolves minimal profile without the hook runtime', () => {
@@ -222,11 +301,144 @@ function runTests() {
 
     assert.deepStrictEqual(
       plan.selectedModuleIds,
-      ['rules-core', 'agents-core', 'commands-core', 'platform-configs', 'workflow-quality']
+      [
+        'rules-core',
+        'agents-core',
+        'commands-core',
+        'platform-configs',
+        'skill-unified-memory',
+        'workflow-quality'
+      ]
     );
     assert.ok(!plan.selectedModuleIds.includes('hooks-runtime'),
       'minimal profile should not install hooks-runtime');
     assert.ok(plan.operations.length > 0, 'Should include install operations');
+  })) passed++; else failed++;
+
+  if (test('resolves Qwen minimal profile while leaving hooks out', () => {
+    const homeDir = '/Users/example';
+    const plan = resolveInstallPlan({
+      profileId: 'minimal',
+      target: 'qwen',
+      homeDir,
+    });
+
+    assert.deepStrictEqual(
+      plan.selectedModuleIds,
+      [
+        'rules-core',
+        'agents-core',
+        'commands-core',
+        'platform-configs',
+        'skill-unified-memory',
+        'workflow-quality'
+      ]
+    );
+    assert.deepStrictEqual(plan.skippedModuleIds, []);
+    assert.strictEqual(plan.targetAdapterId, 'qwen-home');
+    assert.strictEqual(plan.targetRoot, path.join(homeDir, '.qwen'));
+    assert.ok(
+      plan.operations.some(operation => operation.sourceRelativePath === '.qwen'),
+      'Should install Qwen native config'
+    );
+    assert.ok(
+      !plan.operations.some(operation => operation.destinationPath.includes(`${path.sep}hooks`)),
+      'Qwen minimal profile should not install hook runtime files'
+    );
+  })) passed++; else failed++;
+
+  if (test('resolves Zed minimal profile with project settings and without hooks', () => {
+    const projectRoot = '/workspace/zed-app';
+    const plan = resolveInstallPlan({
+      profileId: 'minimal',
+      target: 'zed',
+      projectRoot,
+    });
+
+    assert.deepStrictEqual(
+      plan.selectedModuleIds,
+      [
+        'rules-core',
+        'agents-core',
+        'commands-core',
+        'platform-configs',
+        'skill-unified-memory',
+        'workflow-quality'
+      ]
+    );
+    assert.deepStrictEqual(plan.skippedModuleIds, []);
+    assert.strictEqual(plan.targetAdapterId, 'zed-project');
+    assert.strictEqual(plan.targetRoot, path.join(projectRoot, '.zed'));
+    assert.ok(
+      plan.operations.some(operation => operation.sourceRelativePath === '.zed'),
+      'Should install Zed native project settings'
+    );
+    assert.ok(
+      !plan.selectedModuleIds.includes('hooks-runtime')
+      && !plan.operations.some(operation => operation.moduleId === 'hooks-runtime'),
+      'Zed minimal profile should not install hook runtime files'
+    );
+  })) passed++; else failed++;
+
+  if (test('resolves machine-learning component with workflow dependencies', () => {
+    const plan = resolveInstallPlan({
+      includeComponentIds: ['capability:machine-learning'],
+      target: 'claude',
+      projectRoot: '/workspace/ml-app',
+    });
+
+    assert.ok(plan.selectedModuleIds.includes('machine-learning'),
+      'Should include machine-learning module');
+    assert.ok(plan.selectedModuleIds.includes('framework-language'),
+      'Should include Python and framework-language support');
+    assert.ok(plan.selectedModuleIds.includes('workflow-quality'),
+      'Should include eval and verification workflows');
+    assert.ok(plan.selectedModuleIds.includes('database'),
+      'Should include database/data persistence support');
+    assert.ok(plan.selectedModuleIds.includes('devops-infra'),
+      'Should include deployment and container support');
+    assert.ok(plan.selectedModuleIds.includes('security'),
+      'Should include security through machine-learning dependencies');
+    assert.ok(plan.operations.some(operation => (
+      operation.sourceRelativePath === 'skills/mle-workflow'
+    )), 'Should install the MLE workflow skill');
+  })) passed++; else failed++;
+
+  if (test('resolves machine-learning component on JoyCode and Qwen targets', () => {
+    for (const target of ['joycode', 'qwen']) {
+      const plan = resolveInstallPlan({
+        includeComponentIds: ['capability:machine-learning'],
+        target,
+        projectRoot: '/workspace/ml-app',
+        homeDir: '/Users/example',
+      });
+
+      assert.ok(plan.selectedModuleIds.includes('machine-learning'),
+        `Should include machine-learning module for ${target}`);
+      assert.ok(!plan.skippedModuleIds.includes('machine-learning'),
+        `Should not skip machine-learning module for ${target}`);
+      assert.ok(plan.operations.some(operation => (
+        operation.sourceRelativePath === 'skills/mle-workflow'
+      )), `Should install the MLE workflow skill for ${target}`);
+    }
+  })) passed++; else failed++;
+
+  if (test('minimal machine-learning install includes MLE reviewer agent surface', () => {
+    const plan = resolveInstallPlan({
+      profileId: 'minimal',
+      includeComponentIds: ['capability:machine-learning'],
+      target: 'claude',
+      projectRoot: '/workspace/ml-app',
+    });
+
+    assert.ok(plan.selectedModuleIds.includes('agents-core'),
+      'Minimal install should keep the agent surface available');
+    assert.ok(plan.operations.some(operation => (
+      operation.sourceRelativePath === 'agents'
+    )), 'Should install the agent directory that contains mle-reviewer.md');
+    assert.ok(plan.operations.some(operation => (
+      operation.sourceRelativePath === 'skills/mle-workflow'
+    )), 'Should install the MLE workflow skill');
   })) passed++; else failed++;
 
   if (test('resolves explicit modules with dependency expansion', () => {
@@ -311,13 +523,44 @@ function runTests() {
       'csharp should resolve to framework-language module');
   })) passed++; else failed++;
 
+  if (test('resolves fsharp legacy compatibility into framework-language module', () => {
+    const selection = resolveLegacyCompatibilitySelection({
+      target: 'cursor',
+      legacyLanguages: ['fsharp'],
+    });
+
+    assert.ok(selection.moduleIds.includes('rules-core'));
+    assert.ok(selection.moduleIds.includes('framework-language'),
+      'fsharp should resolve to framework-language module');
+  })) passed++; else failed++;
+
+  if (test('resolves ruby and rails legacy compatibility into framework-language and security modules', () => {
+    const selection = resolveLegacyCompatibilitySelection({
+      target: 'cursor',
+      legacyLanguages: ['ruby', 'rails'],
+    });
+
+    assert.deepStrictEqual(selection.canonicalLegacyLanguages, ['ruby', 'ruby']);
+    assert.ok(selection.moduleIds.includes('rules-core'));
+    assert.strictEqual(selection.moduleIds.filter(moduleId => moduleId === 'framework-language').length, 1);
+    assert.strictEqual(selection.moduleIds.filter(moduleId => moduleId === 'security').length, 1);
+    assert.ok(selection.moduleIds.includes('framework-language'),
+      'ruby should resolve to framework-language module');
+    assert.ok(selection.moduleIds.includes('security'),
+      'rails alias should add security guidance for Rails apps');
+  })) passed++; else failed++;
+
   if (test('keeps antigravity legacy compatibility selections target-safe', () => {
     const selection = resolveLegacyCompatibilitySelection({
       target: 'antigravity',
-      legacyLanguages: ['typescript'],
+      legacyLanguages: ['c', 'go', 'kotlin'],
     });
 
-    assert.deepStrictEqual(selection.moduleIds, ['rules-core', 'agents-core', 'commands-core']);
+    assert.deepStrictEqual(selection.ruleLanguages, ['cpp', 'golang', 'kotlin']);
+    assert.deepStrictEqual(
+      selection.moduleIds,
+      ['rules-core', 'agents-core', 'commands-core', 'skill-unified-memory', 'workflow-quality']
+    );
   })) passed++; else failed++;
 
   if (test('rejects unknown legacy compatibility languages', () => {
@@ -631,7 +874,7 @@ function runTests() {
             id: 'unsupported-antigravity',
             kind: 'skills',
             description: 'Unsupported',
-            paths: ['.cursor', 'skills/example'],
+            paths: ['.cursor', 'skills/example', 'commands/example'],
             targets: ['antigravity'],
             dependencies: [],
             defaultInstall: false,
@@ -660,8 +903,15 @@ function runTests() {
         'Unsupported antigravity paths should be filtered from planned operations'
       );
       assert.ok(
-        plan.operations.some(operation => operation.sourceRelativePath === 'skills/example'),
-        'Supported antigravity skill paths should still be planned'
+        plan.operations.some(operation => (
+          operation.sourceRelativePath === 'skills/example'
+          && operation.destinationPath === path.join('/workspace/app', '.agents', 'skills', 'example')
+        )),
+        'Canonical skill sources should be installed into native Antigravity skills'
+      );
+      assert.ok(
+        plan.operations.some(operation => operation.sourceRelativePath === 'commands/example'),
+        'Supported antigravity source paths should still be planned'
       );
     } finally {
       cleanupTestRepo(repoRoot);

@@ -1,4 +1,4 @@
-**언어:** [English](../../README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | 한국어 | [Türkçe](../tr/README.md)
+**언어:** [English](../../README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | 한국어 | [Türkçe](../tr/README.md) | [Русский](../ru/README.md) | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md) | [Deutsch](../de-DE/README.md) | [Українська](../uk-UA/README.md)
 
 # Everything Claude Code
 
@@ -7,7 +7,7 @@
 [![Contributors](https://img.shields.io/github/contributors/affaan-m/everything-claude-code?style=flat)](https://github.com/affaan-m/everything-claude-code/graphs/contributors)
 [![npm ecc-universal](https://img.shields.io/npm/dw/ecc-universal?label=ecc-universal%20weekly%20downloads&logo=npm)](https://www.npmjs.com/package/ecc-universal)
 [![npm ecc-agentshield](https://img.shields.io/npm/dw/ecc-agentshield?label=ecc-agentshield%20weekly%20downloads&logo=npm)](https://www.npmjs.com/package/ecc-agentshield)
-[![GitHub App Install](https://img.shields.io/badge/GitHub%20App-150%20installs-2ea44f?logo=github)](https://github.com/marketplace/ecc-tools)
+[![GitHub App Install](https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.ecc.tools%2Fbadge%2Finstalls&logo=github)](https://github.com/marketplace/ecc-tools)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)
 ![Shell](https://img.shields.io/badge/-Shell-4EAA25?logo=gnu-bash&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?logo=typescript&logoColor=white)
@@ -22,9 +22,9 @@
 
 <div align="center">
 
-**Language / 语言 / 語言 / 언어 / Dil**
+**Language / 语言 / 語言 / 언어 / Dil / Язык / Ngôn ngữ**
 
-[**English**](../../README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](README.md) | [Türkçe](../tr/README.md)
+[**English**](../../README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](README.md) | [Türkçe](../tr/README.md) | [Русский](../ru/README.md) | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md) | [Deutsch](../de-DE/README.md) | [Українська](../uk-UA/README.md)
 
 </div>
 
@@ -112,10 +112,10 @@
 
 ```bash
 # 마켓플레이스 추가
-/plugin marketplace add https://github.com/affaan-m/everything-claude-code
+/plugin marketplace add https://github.com/affaan-m/ECC
 
 # 플러그인 설치
-/plugin install everything-claude-code
+/plugin install ecc@ecc
 ```
 
 ### 2단계: 룰 설치 (필수)
@@ -141,13 +141,13 @@ cd everything-claude-code
 
 ```bash
 # 커맨드 실행 (플러그인 설치 시 네임스페이스 형태 사용)
-/everything-claude-code:plan "사용자 인증 추가"
+/ecc:plan "사용자 인증 추가"
 
 # 수동 설치(옵션 2) 시에는 짧은 형태를 사용:
 # /plan "사용자 인증 추가"
 
 # 사용 가능한 커맨드 확인
-/plugin list everything-claude-code@everything-claude-code
+/plugin list ecc@ecc
 ```
 
 **끝!** 이제 16개 에이전트, 65개 스킬, 40개 커맨드를 사용할 수 있습니다.
@@ -356,10 +356,10 @@ Claude Code v2.1+는 설치된 플러그인의 `hooks/hooks.json`을 **자동으
 
 ```bash
 # 마켓플레이스 추가
-/plugin marketplace add https://github.com/affaan-m/everything-claude-code
+/plugin marketplace add https://github.com/affaan-m/ECC
 
 # 플러그인 설치
-/plugin install everything-claude-code
+/plugin install ecc@ecc
 ```
 
 또는 `~/.claude/settings.json`에 직접 추가:
@@ -375,7 +375,7 @@ Claude Code v2.1+는 설치된 플러그인의 `hooks/hooks.json`을 **자동으
     }
   },
   "enabledPlugins": {
-    "everything-claude-code@everything-claude-code": true
+    "ecc@ecc": true
   }
 }
 ```
@@ -387,12 +387,12 @@ Claude Code v2.1+는 설치된 플러그인의 `hooks/hooks.json`을 **자동으
 >
 > # 옵션 A: 사용자 레벨 룰 (모든 프로젝트에 적용)
 > mkdir -p ~/.claude/rules
-> cp -r everything-claude-code/rules/common/* ~/.claude/rules/
-> cp -r everything-claude-code/rules/typescript/* ~/.claude/rules/   # 사용하는 스택 선택
+> cp -r everything-claude-code/rules/common ~/.claude/rules/common
+> cp -r everything-claude-code/rules/typescript ~/.claude/rules/typescript   # 사용하는 스택 선택
 >
 > # 옵션 B: 프로젝트 레벨 룰 (현재 프로젝트에만 적용)
 > mkdir -p .claude/rules
-> cp -r everything-claude-code/rules/common/* .claude/rules/
+> cp -r everything-claude-code/rules/common .claude/rules/common
 > ```
 
 ---
@@ -409,8 +409,8 @@ git clone https://github.com/affaan-m/everything-claude-code.git
 cp everything-claude-code/agents/*.md ~/.claude/agents/
 
 # 룰 복사 (common + 언어별)
-cp -r everything-claude-code/rules/common/* ~/.claude/rules/
-cp -r everything-claude-code/rules/typescript/* ~/.claude/rules/   # 사용하는 스택 선택
+cp -r everything-claude-code/rules/common ~/.claude/rules/common
+cp -r everything-claude-code/rules/typescript ~/.claude/rules/typescript   # 사용하는 스택 선택
 
 # 커맨드 복사
 cp everything-claude-code/commands/*.md ~/.claude/commands/
@@ -489,8 +489,8 @@ rules/
 
 | 하고 싶은 것 | 사용할 커맨드 | 사용되는 에이전트 |
 |-------------|-------------|-----------------|
-| 새 기능 계획하기 | `/everything-claude-code:plan "인증 추가"` | planner |
-| 시스템 아키텍처 설계 | `/everything-claude-code:plan` + architect 에이전트 | architect |
+| 새 기능 계획하기 | `/ecc:plan "인증 추가"` | planner |
+| 시스템 아키텍처 설계 | `/ecc:plan` + architect 에이전트 | architect |
 | 테스트를 먼저 작성하며 코딩 | `/tdd` | tdd-guide |
 | 방금 작성한 코드 리뷰 | `/code-review` | code-reviewer |
 | 빌드 실패 수정 | `/build-fix` | build-error-resolver |
@@ -507,7 +507,7 @@ rules/
 
 **새로운 기능 시작:**
 ```
-/everything-claude-code:plan "OAuth를 사용한 사용자 인증 추가"
+/ecc:plan "OAuth를 사용한 사용자 인증 추가"
                                               → planner가 구현 청사진 작성
 /tdd                                          → tdd-guide가 테스트 먼저 작성 강제
 /code-review                                  → code-reviewer가 코드 검토
@@ -535,7 +535,7 @@ rules/
 <summary><b>설치된 에이전트/커맨드 확인은 어떻게 하나요?</b></summary>
 
 ```bash
-/plugin list everything-claude-code@everything-claude-code
+/plugin list ecc@ecc
 ```
 
 플러그인에서 사용할 수 있는 모든 에이전트, 커맨드, 스킬을 보여줍니다.
@@ -573,7 +573,7 @@ MCP 서버가 너무 많으면 컨텍스트를 잡아먹습니다. 각 MCP 도�
 cp everything-claude-code/agents/*.md ~/.claude/agents/
 
 # 룰만
-cp -r everything-claude-code/rules/common/* ~/.claude/rules/
+cp -r everything-claude-code/rules/common ~/.claude/rules/common
 ```
 
 각 컴포넌트는 완전히 독립적입니다.
@@ -586,7 +586,7 @@ cp -r everything-claude-code/rules/common/* ~/.claude/rules/
 - **Cursor**: `.cursor/`에 변환된 설정 제공
 - **OpenCode**: `.opencode/`에 전체 플러그인 지원
 - **Codex**: macOS 앱과 CLI 모두 퍼스트클래스 지원
-- **Antigravity**: `.agent/`에 워크플로우, 스킬, 평탄화된 룰 통합
+- **Antigravity**: `.agents/`에 워크플로우, 스킬, 에이전트, 평탄화된 룰 통합
 - **Claude Code**: 네이티브 — 이것이 주 타겟입니다
 </details>
 

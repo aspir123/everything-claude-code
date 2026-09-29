@@ -826,19 +826,6 @@ function runTests() {
     aliases.deleteAlias('atomic-test-2');
   })) passed++; else failed++;
 
-  // Cleanup — restore both HOME and USERPROFILE (Windows)
-  process.env.HOME = origHome;
-  if (origUserProfile !== undefined) {
-    process.env.USERPROFILE = origUserProfile;
-  } else {
-    delete process.env.USERPROFILE;
-  }
-  try {
-    fs.rmSync(tmpHome, { recursive: true, force: true });
-  } catch {
-    // best-effort
-  }
-
   // ── Round 48: rapid sequential saves data integrity ──
   console.log('\nRound 48: rapid sequential saves:');
 
@@ -1230,8 +1217,8 @@ function runTests() {
     // session-aliases.js lines 131-137: When saveAliases fails (outer catch),
     // it tries to restore from backup. If the restore ALSO fails, the inner
     // catch at line 135 logs restoreErr. No existing test creates this double-fault.
-    if (process.platform === 'win32') {
-      console.log('    (skipped — chmod not reliable on Windows)');
+    if (process.platform === 'win32' || process.getuid?.() === 0) {
+      console.log('    (skipped — chmod ineffective on Windows/root)');
       return;
     }
     const isoHome = path.join(os.tmpdir(), `ecc-r90-restore-fail-${Date.now()}`);
@@ -1821,6 +1808,19 @@ function runTests() {
     assert.ok(keys.includes('normal'),
       'Object.keys includes normal alias');
   })) passed++; else failed++;
+
+  // Cleanup — restore both HOME and USERPROFILE (Windows)
+  process.env.HOME = origHome;
+  if (origUserProfile !== undefined) {
+    process.env.USERPROFILE = origUserProfile;
+  } else {
+    delete process.env.USERPROFILE;
+  }
+  try {
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  } catch {
+    // best-effort
+  }
 
   // Summary
   console.log(`\nResults: Passed: ${passed}, Failed: ${failed}`);

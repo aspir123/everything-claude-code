@@ -55,6 +55,21 @@ This applies consistently across all component path fields.
 
 ---
 
+## Agent `tools` Frontmatter: USE A SCALAR
+
+The array rule above applies to `plugin.json`, not agent Markdown frontmatter.
+Claude Code agent files use a comma-separated scalar for their tool allowlist:
+
+```yaml
+tools: Read, Glob, Grep
+```
+
+Do not use a YAML sequence such as `tools: [Read, Glob, Grep]`. Omitting the
+`tools` field grants the agent access to all tools, but ECC agents declare
+explicit allowlists and the repository validator requires the field.
+
+---
+
 ## The `agents` Field: DO NOT ADD
 
 > WARNING: **CRITICAL:** Do NOT add an `"agents"` field to `plugin.json`. The Claude Code plugin validator rejects it entirely.
@@ -136,6 +151,7 @@ The test `plugin.json does NOT have explicit hooks declaration` in `tests/hooks/
 
 ECC keeps `.mcp.json` at the repository root for Codex plugin installs and manual MCP setup.
 Claude Code also auto-discovers plugin-root `.mcp.json` files by convention, which would bundle the same MCP servers into Claude plugin installs.
+The Claude plugin slug is intentionally short (`ecc`), but this opt-out is still required because legacy installs and strict provider gateways have failed on generated names from longer plugin identifiers.
 
 Keep this field in `.claude-plugin/plugin.json`:
 

@@ -3,7 +3,7 @@ const globals = require('globals');
 
 module.exports = [
     {
-        ignores: ['.opencode/dist/**', '.cursor/**', 'node_modules/**']
+        ignores: ['.opencode/dist/**', '.cursor/**', 'node_modules/**', '.venv/**', 'venv/**', 'coverage/**', 'workflows/**/*.workflow.*', '.claude/workflows/**']
     },
     js.configs.recommended,
     {
@@ -27,6 +27,12 @@ module.exports = [
     },
     {
         files: ['**/*.mjs'],
+        languageOptions: {
+            sourceType: 'module'
+        }
+    },
+    {
+        files: ['docker/context-profiles/complex-eval/**/recurring-incident/**/*.js'],
         languageOptions: {
             sourceType: 'module'
         }

@@ -21,9 +21,9 @@
 
 <div align="center">
 
-**Dil / Language / 语言 / 語言**
+**Dil / Language / 语言 / 語言 / Язык / Ngôn ngữ**
 
-[**English**](../../README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](../ko-KR/README.md) | [**Türkçe**](README.md)
+[**English**](../../README.md) | [Português (Brasil)](../pt-BR/README.md) | [简体中文](../../README.zh-CN.md) | [繁體中文](../zh-TW/README.md) | [日本語](../ja-JP/README.md) | [한국어](../ko-KR/README.md) | [**Türkçe**](README.md) | [Русский](../ru/README.md) | [Tiếng Việt](../vi-VN/README.md) | [ไทย](../th/README.md) | [Deutsch](../de-DE/README.md) | [Українська](../uk-UA/README.md)
 
 </div>
 
@@ -79,6 +79,14 @@ Bu repository yalnızca ham kodu içerir. Rehberler her şeyi açıklıyor.
 
 ## Yenilikler
 
+### v2.2.2 — Rehberli Çoklu Harness Kurulumu (Ağu 2026)
+
+Claude Code, Codex ve Kimi Code için incelenebilir çoklu harness kurulumu ve eşitlenmiş npm komut girişi eklendi.
+
+### v2.1.0 — Ajan Harness İşletim Sistemi (Haz 2026)
+
+2.0 hattının kararlı sürümü: 261 skill, control-pane altyapısı, MCP envanteri, worktree yaşam döngüsü servisi ve [Discord topluluğu](https://discord.gg/36yGMHGFbR).
+
 ### v2.0.0-rc.1 — Surface Sync, Operatör İş Akışları ve ECC 2.0 Alpha (Nis 2026)
 
 - **Public surface canlı repo ile senkronlandı** — metadata, katalog sayıları, plugin manifest'leri ve kurulum odaklı dokümanlar artık gerçek OSS yüzeyiyle eşleşiyor.
@@ -122,10 +130,10 @@ Bu repository yalnızca ham kodu içerir. Rehberler her şeyi açıklıyor.
 
 ```bash
 # Marketplace ekle
-/plugin marketplace add https://github.com/affaan-m/everything-claude-code
+/plugin marketplace add https://github.com/affaan-m/ECC
 
 # Plugin'i kur
-/plugin install everything-claude-code
+/plugin install ecc@ecc
 ```
 
 ### Adım 2: Rule'ları Kurun (Gerekli)
@@ -154,8 +162,8 @@ npm install        # veya: pnpm install | yarn install | bun install
 # .\install.ps1 --target cursor typescript
 # .\install.ps1 --target antigravity typescript
 
-# npm-installed uyumluluk entry point'i de çapraz platform çalışır
-npx ecc-install typescript
+# Yayımlanmış npm paketinin entry point'i de çapraz platform çalışır
+npx ecc-universal install typescript
 ```
 
 Manuel kurulum talimatları için `rules/` klasöründeki README'ye bakın.
@@ -164,13 +172,13 @@ Manuel kurulum talimatları için `rules/` klasöründeki README'ye bakın.
 
 ```bash
 # Bir command deneyin (plugin kurulumu namespace'li form kullanır)
-/everything-claude-code:plan "Kullanıcı kimlik doğrulaması ekle"
+/ecc:plan "Kullanıcı kimlik doğrulaması ekle"
 
 # Manuel kurulum (Seçenek 2) daha kısa formu kullanır:
 # /plan "Kullanıcı kimlik doğrulaması ekle"
 
 # Mevcut command'ları kontrol edin
-/plugin list everything-claude-code@everything-claude-code
+/plugin list ecc@ecc
 ```
 
 **Bu kadar!** Artık 28 agent, 116 skill ve 59 command'a erişiminiz var.
@@ -308,8 +316,8 @@ Nereden başlayacağınızdan emin değil misiniz? Bu hızlı referansı kullan�
 
 | Yapmak istediğim... | Bu command'ı kullan | Kullanılan agent |
 |---------------------|---------------------|------------------|
-| Yeni bir feature planla | `/everything-claude-code:plan "Auth ekle"` | planner |
-| Sistem mimarisi tasarla | `/everything-claude-code:plan` + architect agent | architect |
+| Yeni bir feature planla | `/ecc:plan "Auth ekle"` | planner |
+| Sistem mimarisi tasarla | `/ecc:plan` + architect agent | architect |
 | Önce testlerle kod yaz | `/tdd` | tdd-guide |
 | Yazdığım kodu incele | `/code-review` | code-reviewer |
 | Başarısız bir build'i düzelt | `/build-fix` | build-error-resolver |
@@ -324,7 +332,7 @@ Nereden başlayacağınızdan emin değil misiniz? Bu hızlı referansı kullan�
 
 **Yeni bir feature başlatma:**
 ```
-/everything-claude-code:plan "OAuth ile kullanıcı kimlik doğrulaması ekle"
+/ecc:plan "OAuth ile kullanıcı kimlik doğrulaması ekle"
                                               → planner implementasyon planı oluşturur
 /tdd                                          → tdd-guide önce-test-yaz'ı zorunlu kılar
 /code-review                                  → code-reviewer çalışmanızı kontrol eder
@@ -352,7 +360,7 @@ Nereden başlayacağınızdan emin değil misiniz? Bu hızlı referansı kullan�
 <summary><b>Hangi agent/command'ların kurulu olduğunu nasıl kontrol ederim?</b></summary>
 
 ```bash
-/plugin list everything-claude-code@everything-claude-code
+/plugin list ecc@ecc
 ```
 
 Bu, plugin'den mevcut tüm agent'ları, command'ları ve skill'leri gösterir.
@@ -390,7 +398,7 @@ Evet. Seçenek 2'yi (manuel kurulum) kullanın ve yalnızca ihtiyacınız olanı
 cp everything-claude-code/agents/*.md ~/.claude/agents/
 
 # Sadece rule'lar
-cp -r everything-claude-code/rules/common/* ~/.claude/rules/
+cp -r everything-claude-code/rules/common ~/.claude/rules/common
 ```
 
 Her component tamamen bağımsızdır.
@@ -403,7 +411,7 @@ Evet. ECC çapraz platformdur:
 - **Cursor**: `.cursor/` içinde önceden çevrilmiş config'ler. [Cursor IDE Desteği](../../README.md#cursor-ide-support) bölümüne bakın.
 - **OpenCode**: `.opencode/` içinde tam plugin desteği. [OpenCode Desteği](../../README.md#opencode-support) bölümüne bakın.
 - **Codex**: macOS app ve CLI için birinci sınıf destek. PR [#257](https://github.com/affaan-m/everything-claude-code/pull/257)'ye bakın.
-- **Antigravity**: İş akışları, skill'ler ve `.agent/` içinde düzleştirilmiş rule'lar için sıkı entegre kurulum.
+- **Antigravity**: İş akışları, skill'ler ve `.agents/` içinde düzleştirilmiş rule'lar için sıkı entegre kurulum.
 - **Claude Code**: Native — bu birincil hedeftir.
 </details>
 
