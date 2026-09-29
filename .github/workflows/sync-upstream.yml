@@ -31,7 +31,7 @@ jobs:
           target_sync_branch: main
           target_repo_token: ${{ secrets.GITHUB_TOKEN }}
           upstream_sync_branch: main
-          upstream_sync_repo: disler/everything-claude-code
+          upstream_sync_repo: affaan-m/ECC
           test_mode: ${{ inputs.sync_test_mode }}
 
       - name: New commits found
