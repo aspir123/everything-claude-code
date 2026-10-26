@@ -1,4 +1,4 @@
-name: Sync Fork with Upstream (PR, auto-merge)
+name: Sync Fork with Upstream (CI-gated auto-merge)
 
 on:
   schedule:
@@ -21,8 +21,12 @@ concurrency:
 
 jobs:
   sync:
-    name: Prepare and auto-merge upstream sync PR
+    name: Prepare and CI-gate upstream sync PR
     runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment:
+      name: sync-upstream
+      deployment: false
     env:
       TARGET_BRANCH: main
       UPSTREAM_REPOSITORY: affaan-m/ECC
@@ -115,9 +119,11 @@ jobs:
           PR_TITLE="chore: sync upstream ${UPSTREAM_REPOSITORY}@${SHORT_SHA}"
           PR_BODY="${SYNC_PR_MARKER}
 
-          Automated upstream synchronization for ${TARGET_BRANCH} from ${UPSTREAM_REPOSITORY} (${UPSTREAM_BRANCH} at ${UPSTREAM_SHA}).
+          Automated weekly upstream synchronization for ${TARGET_BRANCH} from ${UPSTREAM_REPOSITORY} (${UPSTREAM_BRANCH} at ${UPSTREAM_SHA}).
 
-          The upstream commit history is preserved on this dedicated sync branch. No manual review is requested. GitHub auto-merge will merge this PR after all required status checks pass. This requires repository auto-merge to be enabled and the target branch to require the intended CI checks."
+          The upstream commit history is preserved on this dedicated sync branch. No manual review is requested. This workflow waits for the CI workflow to finish successfully on the exact PR head commit, rechecks that the PR head has not changed, then merges the PR without bypassing repository rules. It never pushes directly to ${TARGET_BRANCH}.
+
+          Required setup: create a GitHub Actions environment named sync-upstream, allow deployments only from the main branch (do not allow refs/pull/*/merge), and store SYNC_UPSTREAM_TOKEN as an environment secret, not a repository secret. Use a fine-grained token limited to this repository with Contents: read/write, Pull requests: read/write, Workflows: read/write, and Actions: read. Do not add an environment approval requirement."
 
           if [ -n "$PR_NUMBER" ]; then
             gh pr edit "$PR_NUMBER" --repo "$GH_REPO" --title "$PR_TITLE" --body "$PR_BODY"
@@ -131,7 +137,69 @@ jobs:
             exit 1
           fi
 
-          if ! gh pr merge "$PR_NUMBER" --repo "$GH_REPO" --merge --auto; then
-            echo "::error::Auto-merge setup is incomplete; enable repository auto-merge and require CI checks on ${TARGET_BRANCH}."
+          PR_STATE="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json state --jq '.state')"
+          PR_HEAD_SHA="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json headRefOid --jq '.headRefOid')"
+          if [ "$PR_STATE" != "OPEN" ] || [ -z "$PR_HEAD_SHA" ]; then
+            echo "::error::The upstream sync pull request is not open or its head SHA could not be read."
             exit 1
           fi
+
+          CI_RUN_ID=""
+          for attempt in $(seq 1 30); do
+            CI_RUNS_JSON="$(gh run list --repo "$GH_REPO" --workflow .github/workflows/ci.yml \
+              --commit "$PR_HEAD_SHA" --event pull_request --limit 100 \
+              --json databaseId,event,headSha,workflowName)"
+            CI_RUN_ID="$(jq -r --arg sha "$PR_HEAD_SHA" \
+              '[.[] | select(.headSha == $sha and .event == "pull_request" and .workflowName == "CI")][0].databaseId // ""' \
+              <<< "$CI_RUNS_JSON")"
+            if [ -n "$CI_RUN_ID" ]; then
+              break
+            fi
+            sleep 10
+          done
+
+          if [ -z "$CI_RUN_ID" ]; then
+            echo "::error::No CI workflow run appeared for the exact PR head within five minutes; leaving the PR open."
+            exit 1
+          fi
+
+          CI_COMPLETED=false
+          for attempt in $(seq 1 330); do
+            CI_RUN_JSON="$(gh api "repos/${GH_REPO}/actions/runs/${CI_RUN_ID}" \
+              --jq '{id,head_sha,event,status,conclusion,name}')"
+            CI_RUN_HEAD_SHA="$(jq -r '.head_sha // ""' <<< "$CI_RUN_JSON")"
+            CI_RUN_EVENT="$(jq -r '.event // ""' <<< "$CI_RUN_JSON")"
+            CI_RUN_NAME="$(jq -r '.name // ""' <<< "$CI_RUN_JSON")"
+            CI_RUN_STATUS="$(jq -r '.status // ""' <<< "$CI_RUN_JSON")"
+            CI_RUN_CONCLUSION="$(jq -r '.conclusion // ""' <<< "$CI_RUN_JSON")"
+
+            if [ "$CI_RUN_HEAD_SHA" != "$PR_HEAD_SHA" ] || [ "$CI_RUN_EVENT" != "pull_request" ] || [ "$CI_RUN_NAME" != "CI" ]; then
+              echo "::error::The located CI run does not match the expected PR head and workflow."
+              exit 1
+            fi
+
+            if [ "$CI_RUN_STATUS" = "completed" ]; then
+              if [ "$CI_RUN_CONCLUSION" != "success" ]; then
+                echo "::error::CI completed with conclusion '$CI_RUN_CONCLUSION'; leaving the PR open."
+                exit 1
+              fi
+              CI_COMPLETED=true
+              break
+            fi
+
+            sleep 60
+          done
+
+          if [ "$CI_COMPLETED" != "true" ]; then
+            echo "::error::CI did not complete within the wait window; leaving the PR open."
+            exit 1
+          fi
+
+          PR_CURRENT_STATE="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json state --jq '.state')"
+          PR_CURRENT_HEAD_SHA="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json headRefOid --jq '.headRefOid')"
+          if [ "$PR_CURRENT_STATE" != "OPEN" ] || [ "$PR_CURRENT_HEAD_SHA" != "$PR_HEAD_SHA" ]; then
+            echo "::error::The PR state or head changed while CI was running; leaving it open."
+            exit 1
+          fi
+
+          gh pr merge "$PR_NUMBER" --repo "$GH_REPO" --merge --match-head-commit "$PR_HEAD_SHA"
