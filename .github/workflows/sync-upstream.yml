@@ -1,4 +1,4 @@
-name: Sync Fork with Upstream (PR)
+name: Sync Fork with Upstream (PR, auto-merge)
 
 on:
   schedule:
@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: sync-upstream-${{ github.repository }}
@@ -20,11 +21,8 @@ concurrency:
 
 jobs:
   sync:
-    name: Prepare upstream sync PR
+    name: Prepare and auto-merge upstream sync PR
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     env:
       TARGET_BRANCH: main
       UPSTREAM_REPOSITORY: affaan-m/ECC
@@ -38,14 +36,19 @@ jobs:
           filter: blob:none
           persist-credentials: false
 
-      - name: Merge upstream into a review branch
+      - name: Merge upstream into a sync branch
         env:
           GH_TOKEN: ${{ secrets.SYNC_UPSTREAM_TOKEN || github.token }}
+          SYNC_UPSTREAM_TOKEN: ${{ secrets.SYNC_UPSTREAM_TOKEN }}
           GH_REPO: ${{ github.repository }}
           DRY_RUN: ${{ inputs.sync_test_mode }}
         shell: bash
         run: |
           set -euo pipefail
+          if [ "$DRY_RUN" != "true" ] && [ -z "$SYNC_UPSTREAM_TOKEN" ]; then
+            echo "::error::SYNC_UPSTREAM_TOKEN is required for non-dry-run syncs."
+            exit 1
+          fi
 
           git remote add upstream "https://github.com/${UPSTREAM_REPOSITORY}.git"
           git fetch --filter=blob:none --no-tags origin "+refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
@@ -105,10 +108,18 @@ jobs:
           PR_TITLE="chore: sync upstream ${UPSTREAM_REPOSITORY}@${SHORT_SHA}"
           PR_BODY="Automated upstream synchronization for ${TARGET_BRANCH} from ${UPSTREAM_REPOSITORY} (${UPSTREAM_BRANCH} at ${UPSTREAM_SHA}).
 
-          The upstream commit history is preserved on this review branch. Review the complete upstream diff and the repository's CI results before merging. This workflow only pushes its dedicated ${SYNC_BRANCH} branch."
+          The upstream commit history is preserved on this dedicated sync branch. No manual review is requested. GitHub auto-merge will merge this PR after all required status checks pass. This requires repository auto-merge to be enabled and the target branch to require the intended CI checks."
 
           if [ -n "$PR_NUMBER" ]; then
             gh pr edit "$PR_NUMBER" --repo "$GH_REPO" --title "$PR_TITLE" --body "$PR_BODY"
           else
             gh pr create --repo "$GH_REPO" --base "$TARGET_BRANCH" --head "$SYNC_BRANCH" --title "$PR_TITLE" --body "$PR_BODY"
+            PR_NUMBER="$(gh pr view "$SYNC_BRANCH" --repo "$GH_REPO" --json number --jq '.number')"
           fi
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::error::Could not identify the upstream sync pull request."
+            exit 1
+          fi
+
+          gh pr merge "$PR_NUMBER" --repo "$GH_REPO" --merge --auto
