@@ -38,9 +38,10 @@ jobs:
 
       - name: Merge upstream into a sync branch
         env:
-          GH_TOKEN: ${{ secrets.SYNC_UPSTREAM_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_test_mode && github.token || secrets.SYNC_UPSTREAM_TOKEN || github.token }}
           SYNC_UPSTREAM_TOKEN: ${{ secrets.SYNC_UPSTREAM_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          GH_OWNER: ${{ github.repository_owner }}
           DRY_RUN: ${{ inputs.sync_test_mode }}
         shell: bash
         run: |
@@ -59,6 +60,7 @@ jobs:
           UPSTREAM_SHA="$(git rev-parse "${UPSTREAM_REF}")"
           SHORT_SHA="${UPSTREAM_SHA:0:12}"
           UPSTREAM_AHEAD="$(git rev-list --count "${TARGET_REF}..${UPSTREAM_REF}")"
+          SYNC_PR_MARKER="<!-- codex-upstream-sync:${UPSTREAM_REPOSITORY}:${UPSTREAM_BRANCH} -->"
 
           if [ "$UPSTREAM_AHEAD" -eq 0 ]; then
             echo "Upstream is already contained in ${TARGET_BRANCH}; nothing to sync."
@@ -67,8 +69,10 @@ jobs:
 
           OPEN_PRS_JSON="$(gh api --paginate --slurp \
             "repos/${GH_REPO}/pulls?state=open&base=${TARGET_BRANCH}&per_page=100")"
-          OPEN_SYNC_BRANCH="$(jq -r '
+          OPEN_SYNC_BRANCH="$(jq -r --arg marker "$SYNC_PR_MARKER" --arg owner "$GH_OWNER" '
             [.[][] | select(.head.repo.full_name == env.GH_REPO)
+             | select(.user.login == $owner)
+             | select((.body // "") | contains($marker))
              | select(.head.ref | startswith("automation/sync-upstream-"))]
             | sort_by(.created_at) | last | .head.ref // ""' <<< "$OPEN_PRS_JSON")"
 
@@ -101,12 +105,17 @@ jobs:
 
           OPEN_PRS_JSON="$(gh api --paginate --slurp \
             "repos/${GH_REPO}/pulls?state=open&base=${TARGET_BRANCH}&per_page=100")"
-          PR_NUMBER="$(jq -r --arg branch "$SYNC_BRANCH" '
-            [.[][] | select(.head.repo.full_name == env.GH_REPO) | select(.head.ref == $branch)]
+          PR_NUMBER="$(jq -r --arg branch "$SYNC_BRANCH" --arg marker "$SYNC_PR_MARKER" --arg owner "$GH_OWNER" '
+            [.[][] | select(.head.repo.full_name == env.GH_REPO)
+             | select(.user.login == $owner)
+             | select((.body // "") | contains($marker))
+             | select(.head.ref == $branch)]
             | .[0].number // ""' <<< "$OPEN_PRS_JSON")"
 
           PR_TITLE="chore: sync upstream ${UPSTREAM_REPOSITORY}@${SHORT_SHA}"
-          PR_BODY="Automated upstream synchronization for ${TARGET_BRANCH} from ${UPSTREAM_REPOSITORY} (${UPSTREAM_BRANCH} at ${UPSTREAM_SHA}).
+          PR_BODY="${SYNC_PR_MARKER}
+
+          Automated upstream synchronization for ${TARGET_BRANCH} from ${UPSTREAM_REPOSITORY} (${UPSTREAM_BRANCH} at ${UPSTREAM_SHA}).
 
           The upstream commit history is preserved on this dedicated sync branch. No manual review is requested. GitHub auto-merge will merge this PR after all required status checks pass. This requires repository auto-merge to be enabled and the target branch to require the intended CI checks."
 
@@ -122,4 +131,7 @@ jobs:
             exit 1
           fi
 
-          gh pr merge "$PR_NUMBER" --repo "$GH_REPO" --merge --auto
+          if ! gh pr merge "$PR_NUMBER" --repo "$GH_REPO" --merge --auto; then
+            echo "::error::Auto-merge setup is incomplete; enable repository auto-merge and require CI checks on ${TARGET_BRANCH}."
+            exit 1
+          fi
