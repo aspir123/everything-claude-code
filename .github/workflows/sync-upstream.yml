@@ -127,9 +127,9 @@ jobs:
 
           Automated weekly upstream synchronization for ${TARGET_BRANCH} from ${UPSTREAM_REPOSITORY} (${UPSTREAM_BRANCH} at ${UPSTREAM_SHA}).
 
-          The upstream commit history is preserved on this dedicated sync branch. No manual review is requested. This workflow waits for the CI workflow to finish successfully on the exact PR head commit, rechecks that the PR head has not changed, then merges the PR without bypassing repository rules. It never pushes directly to ${TARGET_BRANCH}.
+          The upstream commit history is preserved on this dedicated sync branch. Ordinary source updates are merged automatically only after the CI run for this PR and exact head succeeds, the PR head and base remain unchanged, and GitHub accepts the merge. No human review is requested for those updates. If the PR changes any path under .github/workflows/, the workflow leaves the PR open for optional AI scan or owner action, even when CI passes. Any other changes in that same upstream batch also remain in the open PR. This workflow never pushes directly to ${TARGET_BRANCH}.
 
-          Required setup: create a GitHub Actions environment named sync-upstream, allow deployments only from the main branch (do not allow refs/pull/*/merge), and store SYNC_UPSTREAM_TOKEN as an environment secret, not a repository secret. Use a fine-grained token limited to this repository with Contents: read/write, Pull requests: read/write, Workflows: read/write, and Actions: read. Do not add an environment approval requirement."
+          Required setup: create a GitHub Actions environment named sync-upstream, allow deployments only from the main branch (do not allow refs/pull/*/merge), and store SYNC_UPSTREAM_TOKEN as an environment secret, not a repository or organization secret. Use a fine-grained token limited to this repository with Contents: read/write, Pull requests: read/write, Workflows: read/write, and Actions: read. Do not add an environment approval requirement."
 
           if [ -n "$PR_NUMBER" ]; then
             gh pr edit "$PR_NUMBER" --repo "$GH_REPO" --title "$PR_TITLE" --body "$PR_BODY"
