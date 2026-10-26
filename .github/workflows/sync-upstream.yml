@@ -137,7 +137,7 @@ jobs:
 
           Automated weekly upstream synchronization for ${TARGET_BRANCH} from ${UPSTREAM_REPOSITORY} (${UPSTREAM_BRANCH} at ${UPSTREAM_SHA}).
 
-          The upstream commit history is preserved on this dedicated sync branch. Ordinary source-only sync PRs are merged immediately after the PR is opened or updated, without waiting for CI or blocking on CI failures. CI runs normally on the PR and its result remains visible, but CI is informational rather than a merge gate. No human review is requested for ordinary source-only updates. If any changed or renamed path is under .github/workflows/, or changes scripts/ci/pr-burst-guard.js, scripts/ci/issue-submission-guard.js, scripts/discord/release-announce.mjs, scripts/discord/announcement-core.mjs, .github/pr-burst-policy.json, or .github/issue-submission-policy.json, the entire upstream batch remains in the open PR for optional AI scan or owner action. This workflow never pushes directly to ${TARGET_BRANCH}.
+          The upstream commit history is preserved on this dedicated sync branch. Ordinary source-only sync PRs are merged immediately after the PR is opened or updated, without waiting for CI or blocking on CI failures. CI runs normally on the PR and its result remains visible, but CI is informational rather than a merge gate. No human review is requested for ordinary source-only updates. If any changed or renamed path is under .github/workflows/, or changes scripts/ci/pr-burst-guard.js, scripts/ci/issue-submission-guard.js, scripts/ci/verify-release-gates.js, scripts/discord/release-announce.mjs, scripts/discord/announcement-core.mjs, .github/pr-burst-policy.json, or .github/issue-submission-policy.json, the entire upstream batch remains in the open PR for optional AI scan or owner action. This workflow never pushes directly to ${TARGET_BRANCH}.
 
           Required setup: create a GitHub Actions environment named sync-upstream, allow deployments only from the main branch (do not allow refs/pull/*/merge), and store SYNC_UPSTREAM_TOKEN as an environment secret, not a repository or organization secret. Use a fine-grained token limited to this repository with Contents: read/write, Pull requests: read/write, and Workflows: read/write. Do not add an environment approval requirement."
 
@@ -166,6 +166,7 @@ jobs:
               ($path | startswith(".github/workflows/"))
               or $path == "scripts/ci/pr-burst-guard.js"
               or $path == "scripts/ci/issue-submission-guard.js"
+              or $path == "scripts/ci/verify-release-gates.js"
               or $path == "scripts/discord/release-announce.mjs"
               or $path == "scripts/discord/announcement-core.mjs"
               or $path == ".github/pr-burst-policy.json"
