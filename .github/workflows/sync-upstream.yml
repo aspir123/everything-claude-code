@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   sync:
+    if: ${{ github.ref == 'refs/heads/main' }}
     name: Prepare and CI-gate upstream sync PR
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -43,13 +44,18 @@ jobs:
       - name: Merge upstream into a sync branch
         env:
           GH_TOKEN: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_test_mode && github.token || secrets.SYNC_UPSTREAM_TOKEN || github.token }}
-          SYNC_UPSTREAM_TOKEN: ${{ secrets.SYNC_UPSTREAM_TOKEN }}
+          SYNC_UPSTREAM_TOKEN: ${{ !inputs.sync_test_mode && secrets.SYNC_UPSTREAM_TOKEN || '' }}
           GH_REPO: ${{ github.repository }}
           GH_OWNER: ${{ github.repository_owner }}
           DRY_RUN: ${{ inputs.sync_test_mode }}
         shell: bash
         run: |
           set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Sync runs are allowed only from refs/heads/main."
+            exit 1
+          fi
+
           if [ "$DRY_RUN" != "true" ] && [ -z "$SYNC_UPSTREAM_TOKEN" ]; then
             echo "::error::SYNC_UPSTREAM_TOKEN is required for non-dry-run syncs."
             exit 1
@@ -138,19 +144,25 @@ jobs:
           fi
 
           PR_STATE="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json state --jq '.state')"
+          PR_BASE_BRANCH="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json baseRefName --jq '.baseRefName')"
+          PR_BASE_SHA="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json baseRefOid --jq '.baseRefOid')"
           PR_HEAD_SHA="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json headRefOid --jq '.headRefOid')"
-          if [ "$PR_STATE" != "OPEN" ] || [ -z "$PR_HEAD_SHA" ]; then
-            echo "::error::The upstream sync pull request is not open or its head SHA could not be read."
+          if [ "$PR_STATE" != "OPEN" ] || [ "$PR_BASE_BRANCH" != "$TARGET_BRANCH" ] || [ -z "$PR_BASE_SHA" ] || [ -z "$PR_HEAD_SHA" ]; then
+            echo "::error::The upstream sync pull request is not open, does not target the expected base, or its refs could not be read."
+            exit 1
+          fi
+
+          CI_WORKFLOW_ID="$(gh api "repos/${GH_REPO}/actions/workflows/ci.yml" --jq '.id')"
+          if [ -z "$CI_WORKFLOW_ID" ]; then
+            echo "::error::Could not identify the repository CI workflow."
             exit 1
           fi
 
           CI_RUN_ID=""
           for attempt in $(seq 1 30); do
-            CI_RUNS_JSON="$(gh run list --repo "$GH_REPO" --workflow .github/workflows/ci.yml \
-              --commit "$PR_HEAD_SHA" --event pull_request --limit 100 \
-              --json databaseId,event,headSha,workflowName)"
-            CI_RUN_ID="$(jq -r --arg sha "$PR_HEAD_SHA" \
-              '[.[] | select(.headSha == $sha and .event == "pull_request" and .workflowName == "CI")][0].databaseId // ""' \
+            CI_RUNS_JSON="$(gh api "repos/${GH_REPO}/actions/workflows/${CI_WORKFLOW_ID}/runs?head_sha=${PR_HEAD_SHA}&event=pull_request&per_page=100")"
+            CI_RUN_ID="$(jq -r --arg sha "$PR_HEAD_SHA" --argjson pr "$PR_NUMBER" \
+              '[.workflow_runs[] | select(.head_sha == $sha and .event == "pull_request") | select(any(.pull_requests[]?; .number == $pr))][0].id // ""' \
               <<< "$CI_RUNS_JSON")"
             if [ -n "$CI_RUN_ID" ]; then
               break
@@ -166,14 +178,15 @@ jobs:
           CI_COMPLETED=false
           for attempt in $(seq 1 330); do
             CI_RUN_JSON="$(gh api "repos/${GH_REPO}/actions/runs/${CI_RUN_ID}" \
-              --jq '{id,head_sha,event,status,conclusion,name}')"
+              --jq '{id,workflow_id,head_sha,event,status,conclusion,pull_requests}')"
+            CI_RUN_WORKFLOW_ID="$(jq -r '.workflow_id // ""' <<< "$CI_RUN_JSON")"
             CI_RUN_HEAD_SHA="$(jq -r '.head_sha // ""' <<< "$CI_RUN_JSON")"
             CI_RUN_EVENT="$(jq -r '.event // ""' <<< "$CI_RUN_JSON")"
-            CI_RUN_NAME="$(jq -r '.name // ""' <<< "$CI_RUN_JSON")"
+            CI_RUN_PR_MATCH="$(jq -r --argjson pr "$PR_NUMBER" 'any(.pull_requests[]?; .number == $pr)' <<< "$CI_RUN_JSON")"
             CI_RUN_STATUS="$(jq -r '.status // ""' <<< "$CI_RUN_JSON")"
             CI_RUN_CONCLUSION="$(jq -r '.conclusion // ""' <<< "$CI_RUN_JSON")"
 
-            if [ "$CI_RUN_HEAD_SHA" != "$PR_HEAD_SHA" ] || [ "$CI_RUN_EVENT" != "pull_request" ] || [ "$CI_RUN_NAME" != "CI" ]; then
+            if [ "$CI_RUN_WORKFLOW_ID" != "$CI_WORKFLOW_ID" ] || [ "$CI_RUN_HEAD_SHA" != "$PR_HEAD_SHA" ] || [ "$CI_RUN_EVENT" != "pull_request" ] || [ "$CI_RUN_PR_MATCH" != "true" ]; then
               echo "::error::The located CI run does not match the expected PR head and workflow."
               exit 1
             fi
@@ -196,9 +209,11 @@ jobs:
           fi
 
           PR_CURRENT_STATE="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json state --jq '.state')"
+          PR_CURRENT_BASE_BRANCH="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json baseRefName --jq '.baseRefName')"
+          PR_CURRENT_BASE_SHA="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json baseRefOid --jq '.baseRefOid')"
           PR_CURRENT_HEAD_SHA="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json headRefOid --jq '.headRefOid')"
-          if [ "$PR_CURRENT_STATE" != "OPEN" ] || [ "$PR_CURRENT_HEAD_SHA" != "$PR_HEAD_SHA" ]; then
-            echo "::error::The PR state or head changed while CI was running; leaving it open."
+          if [ "$PR_CURRENT_STATE" != "OPEN" ] || [ "$PR_CURRENT_BASE_BRANCH" != "$PR_BASE_BRANCH" ] || [ "$PR_CURRENT_BASE_SHA" != "$PR_BASE_SHA" ] || [ "$PR_CURRENT_HEAD_SHA" != "$PR_HEAD_SHA" ]; then
+            echo "::error::The PR state, base, or head changed while CI was running; leaving it open."
             exit 1
           fi
 
