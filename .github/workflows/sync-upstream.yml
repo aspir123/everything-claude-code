@@ -143,6 +143,18 @@ jobs:
             exit 1
           fi
 
+          PR_FILES_JSON="$(gh api --paginate --slurp \
+            "repos/${GH_REPO}/pulls/${PR_NUMBER}/files?per_page=100")"
+          HAS_WORKFLOW_CHANGES="$(jq -r '
+            any(.[][];
+              ((.filename // "") | startswith(".github/workflows/"))
+              or ((.previous_filename // "") | startswith(".github/workflows/"))
+            )' <<< "$PR_FILES_JSON")"
+          if [ "$HAS_WORKFLOW_CHANGES" = "true" ]; then
+            echo "::notice::Upstream sync PR changes GitHub Actions workflows; leaving the PR open for optional AI scan or owner action."
+            exit 0
+          fi
+
           PR_STATE="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json state --jq '.state')"
           PR_BASE_BRANCH="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json baseRefName --jq '.baseRefName')"
           PR_BASE_SHA="$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json baseRefOid --jq '.baseRefOid')"
