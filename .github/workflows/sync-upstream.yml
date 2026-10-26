@@ -110,6 +110,15 @@ jobs:
             exit 0
           fi
 
+          # Same-repository PR workflows can receive repository secrets. If upstream
+          # changes workflow files, suppress push/pull_request runs on that batch
+          # before publishing the branch; the PR path gate below still holds it open.
+          WORKFLOW_DIFF="$(git diff --name-only "$TARGET_REF" HEAD -- .github/workflows/)"
+          if [ -n "$WORKFLOW_DIFF" ]; then
+            git commit --allow-empty -m "chore(sync): hold workflow changes [skip ci]"
+            echo "::notice::Workflow changes detected; push and pull_request workflows are skipped, and the sync PR will remain open."
+          fi
+
           gh auth setup-git --hostname github.com
           git push --set-upstream origin "$SYNC_BRANCH"
 
