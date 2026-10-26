@@ -145,6 +145,12 @@ jobs:
 
           PR_FILES_JSON="$(gh api --paginate --slurp \
             "repos/${GH_REPO}/pulls/${PR_NUMBER}/files?per_page=100")"
+          PR_FILE_COUNT="$(jq '[.[][]] | length' <<< "$PR_FILES_JSON")"
+          if [ "$PR_FILE_COUNT" -ge 3000 ]; then
+            echo "::notice::The PR file list reached GitHub's 3,000-file API limit; leaving the PR open."
+            exit 0
+          fi
+
           HAS_WORKFLOW_CHANGES="$(jq -r '
             any(.[][];
               ((.filename // "") | startswith(".github/workflows/"))
